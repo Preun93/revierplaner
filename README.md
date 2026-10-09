@@ -15,6 +15,10 @@ Web-App zum Einzeichnen eines Jagdreviers auf einer Satellitenkarte – inspirie
 
 Die Daten werden ausschließlich im Browser (localStorage) gespeichert. Regelmäßig über **Daten → Sicherung** exportieren!
 
+## Anmeldung
+Beim Öffnen erscheint eine Anmeldeseite. Die Zugangsdaten werden nur als SHA-256-Hash in `js/auth.js` geprüft.
+**Hinweis:** Da die App eine statische Seite ist, ist dies eine einfache Zugangssperre und kein echter Schutz – wer den Quellcode kennt, kann sie umgehen. Das GitHub-Repository sollte daher privat sein bzw. keine sensiblen Daten enthalten (die Revierdaten selbst liegen ohnehin nur im Browser).
+
 ## Bedienung
 1. Ort suchen oder Standort-Button nutzen.
 2. **Grenze** (oben rechts) → Eckpunkte antippen → ersten Punkt erneut antippen oder **Fertig**.

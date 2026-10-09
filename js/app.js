@@ -651,7 +651,9 @@
         <button class="btn primary" data-a="exp">Aktuelles Revier als GeoJSON exportieren</button>
         <button class="btn" data-a="all">Sicherung aller Reviere herunterladen</button>
         <button class="btn" data-a="imp">GeoJSON / Sicherung importieren</button>
+        <button class="btn danger" data-a="logout">Abmelden</button>
       </div>`, (root) => {
+      root.querySelector('[data-a="logout"]').addEventListener('click', () => window.revierLogout());
       root.querySelector('[data-a="exp"]').addEventListener('click', () => download(safeName(aktiv().name) + '.geojson', revierToGeoJSON(aktiv())));
       root.querySelector('[data-a="all"]').addEventListener('click', () => download('revierplaner_sicherung_' + new Date().toISOString().slice(0, 10) + '.json', { revierplaner: 1, reviere: state.reviere }));
       root.querySelector('[data-a="imp"]').addEventListener('click', () => $('importFile').click());
