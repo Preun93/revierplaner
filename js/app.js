@@ -139,6 +139,12 @@
     hintlineStyle: { color: BOUNDARY_COLOR, dashArray: [6, 6], weight: 3 }
   });
 
+  // Beim Herauszoomen werden die Marker zu kleinen Punkten
+  const DOT_ZOOM = 15;
+  const updateMarkerSize = () => map.getContainer().classList.toggle('zoomed-out', map.getZoom() < DOT_ZOOM);
+  map.on('zoomend', updateMarkerSize);
+  updateMarkerSize();
+
   const grenzeGroup = L.layerGroup().addTo(map);
   const grenzeHandles = L.layerGroup().addTo(map);
   const punkteGroup = L.layerGroup().addTo(map);

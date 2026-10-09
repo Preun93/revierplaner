@@ -203,6 +203,14 @@ body.locked > :not(.login):not(script) { visibility: hidden; }
   text-shadow: 0 1px 3px #000, 0 0 2px #000; pointer-events: none;
 }
 .hide-labels .pin-label { display: none; }
+/* Herausgezoomt: kleiner Punkt an der Markerspitze statt Tropfen */
+.zoomed-out .pin:not(.selected) .pin-body {
+  position: absolute; left: 14px; top: 45px; width: 16px; height: 16px;
+  border-radius: 50%; transform: none; border-width: 2px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .5);
+}
+.zoomed-out .pin:not(.selected) .pin-body svg,
+.zoomed-out .pin:not(.selected) .pin-label { display: none; }
 .pin.selected .pin-body {
   transform: rotate(-45deg) scale(1.2);
   box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--c), 0 4px 12px rgba(0, 0, 0, .5);
