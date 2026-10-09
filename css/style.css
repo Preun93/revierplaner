@@ -130,10 +130,13 @@ body.locked > :not(.login):not(script) { visibility: hidden; }
 .c-wind .head { fill: #2f80ed; stroke-width: 1; }
 .weather {
   display: flex; align-items: center; gap: 8px; height: 54px; padding: 0 12px 0 8px;
+  min-height: 54px; height: auto; padding-top: 6px; padding-bottom: 6px;
   border: 0; border-radius: var(--radius); background: rgba(255, 255, 255, .94); color: var(--text);
   box-shadow: var(--shadow); text-align: left; max-width: calc(100vw - 16px - 66px - 8px - 100px);
 }
 .wx-icon { font-size: 26px; line-height: 1; }
+.wx-text .wx-sun { font-size: 11px; }
+.wx-text .wx-sun:empty { display: none; }
 .wx-text { display: flex; flex-direction: column; min-width: 0; }
 .wx-text b { font-size: 17px; }
 .wx-text small { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -150,6 +153,30 @@ body.locked > :not(.login):not(script) { visibility: hidden; }
 .wind-big { display: flex; align-items: center; gap: 12px; }
 .wind-big svg { width: 44px; height: 44px; color: #2f80ed; stroke-width: 2.4; flex: none; }
 .muted-note { font-size: 12px; color: var(--muted); margin-top: 14px; }
+
+/* ---------- Jagdzeiten ---------- */
+.seg { display: flex; background: #eef2ef; border-radius: 12px; padding: 3px; margin-bottom: 12px; }
+.seg button { flex: 1; border: 0; background: none; border-radius: 10px; padding: 9px; font-weight: 600; color: var(--muted); }
+.seg button.on { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, .15); }
+.jz-group { border-bottom: 1px solid var(--line); }
+.jz-group summary {
+  list-style: none; cursor: pointer; padding: 12px 2px; font-weight: 700;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.jz-group summary::-webkit-details-marker { display: none; }
+.jz-group summary::after { content: "▾"; color: var(--muted); transition: transform .15s; }
+.jz-group[open] summary::after { transform: rotate(180deg); }
+.jz-group summary small { color: var(--muted); font-weight: 500; margin-left: auto; margin-right: 8px; }
+.jz-row { display: flex; align-items: flex-start; gap: 10px; padding: 9px 2px; border-top: 1px solid #f0f3f1; }
+.jz-row .grow { flex: 1; min-width: 0; }
+.jz-row .title { font-weight: 600; }
+.jz-row .sub { font-size: 13px; color: var(--muted); }
+.jz-row .note { font-size: 12px; color: #8a6d1f; margin-top: 2px; }
+.badge { flex: none; font-size: 12px; font-weight: 700; border-radius: 999px; padding: 4px 9px; white-space: nowrap; }
+.badge.open { background: #e3f6ea; color: #1b7a43; }
+.badge.closed { background: #f1f1f1; color: #8a8f8c; }
+.jz-empty { padding: 12px 2px; color: var(--muted); }
+.sun-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
 
 /* ---------- Modus-Banner ---------- */
 .mode-banner {

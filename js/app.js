@@ -753,7 +753,8 @@
     if (!force && fresh && wxLast.latlng && wxLast.latlng.distanceTo(pt) < 3000) return;
     const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + pt.lat.toFixed(3) + '&longitude=' + pt.lng.toFixed(3) +
       '&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,is_day,wind_speed_10m,wind_direction_10m,wind_gusts_10m' +
-      '&hourly=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m&forecast_hours=9&timezone=auto';
+      '&hourly=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m&forecast_hours=9' +
+      '&daily=sunrise,sunset&forecast_days=1&timezone=auto';
     try {
       const res = await fetch(url);
       if (!res.ok) throw new Error(res.status);
@@ -776,9 +777,24 @@
     $('wxTemp').textContent = `${fmtNum(c.temperature_2m)} °C`;
     $('wxWind').textContent = `Wind ${dir16(c.wind_direction_10m)} · ${fmtNum(c.wind_speed_10m)} km/h`;
     $('weatherBtn').title = `${info.text} – Details anzeigen`;
+    const sun = sunTimes();
+    $('wxSun').textContent = sun ? `🌅 ${sun.rise} · 🌇 ${sun.set}` : '';
     $('windArrow').style.display = '';
     $('windArrow').setAttribute('transform', `rotate(${c.wind_direction_10m} 50 50)`);
     $('compass').title = `Wind aus ${dir8(c.wind_direction_10m)} (${Math.round(c.wind_direction_10m)}°)`;
+  }
+
+  // Sonnenauf-/-untergang (Ortszeit des Reviers) und Nachtzeit nach § 19 Abs. 1 Nr. 4 BJagdG
+  function sunTimes() {
+    const d = weather && weather.daily;
+    if (!d || !d.sunrise || !d.sunrise[0]) return null;
+    const hm = (iso) => iso.slice(11, 16);
+    const shift = (iso, min) => {
+      const [h, m] = iso.slice(11, 16).split(':').map(Number);
+      const t = (h * 60 + m + min + 1440) % 1440;
+      return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0');
+    };
+    return { rise: hm(d.sunrise[0]), set: hm(d.sunset[0]), nightEnd: shift(d.sunrise[0], -90), nightStart: shift(d.sunset[0], 90) };
   }
 
   function openWeatherSheet() {
@@ -804,6 +820,12 @@
         <div class="stat"><b>${fmtNum(c.wind_speed_10m)} km/h</b><small>Wind, Böen ${fmtNum(c.wind_gusts_10m)} km/h</small></div>
         <div class="stat"><b>${fmtNum(c.relative_humidity_2m)} %</b><small>Luftfeuchte</small></div>
       </div>
+      ${sunTimes() ? `<h3>Sonne heute</h3>
+      <div class="sun-row">
+        <div class="stat"><b>🌅 ${sunTimes().rise}</b><small>Sonnenaufgang</small></div>
+        <div class="stat"><b>🌇 ${sunTimes().set}</b><small>Sonnenuntergang</small></div>
+      </div>
+      <p class="muted-note" style="margin-top:8px">Nachtzeit nach § 19 BJagdG: ${sunTimes().nightStart} – ${sunTimes().nightEnd} Uhr (1,5 h nach Sonnenunter- bis 1,5 h vor Sonnenaufgang). In dieser Zeit darf Schalenwild (außer Schwarzwild) und Federwild (Ausnahmen u. a. Waldschnepfe, Möwen) nicht erlegt werden.</p>` : ''}
       <h3>Nächste Stunden</h3>
       <div class="wx-hours">${hours}</div>
       <p class="muted-note">Der blaue Pfeil zeigt, wohin der Wind weht. Stand ${stand} Uhr · Daten: Open-Meteo.com</p>
@@ -815,6 +837,63 @@
   map.on('moveend', () => { if (!grenzeLayer) scheduleWeather(false); });
   setInterval(() => loadWeather(true), 15 * 60 * 1000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') scheduleWeather(false); });
+
+  // ---------- Jagdzeiten NRW ----------
+  const MONATE = ['Jan.', 'Feb.', 'März', 'Apr.', 'Mai', 'Juni', 'Juli', 'Aug.', 'Sep.', 'Okt.', 'Nov.', 'Dez.'];
+  const isAll = (p) => p[0] === 1 && p[1] === 1 && p[2] === 12 && p[3] === 31;
+
+  function jzPeriods(item, today) {
+    if (item.sonder && today <= new Date(item.sonder.bis + 'T23:59:59')) return item.sonder.periods;
+    return item.periods;
+  }
+  function jzOpen(periods, today) {
+    const md = (today.getMonth() + 1) * 100 + today.getDate();
+    return periods.some(([m1, d1, m2, d2]) => {
+      const a = m1 * 100 + d1, b = m2 * 100 + d2;
+      return a <= b ? md >= a && md <= b : md >= a || md <= b;
+    });
+  }
+  function jzText(periods) {
+    if (!periods.length) return 'ganzjährige Schonzeit';
+    if (periods.some(isAll)) return 'ganzjährig';
+    return periods.map(([m1, d1, m2, d2]) => `${d1}. ${MONATE[m1 - 1]} – ${d2}. ${MONATE[m2 - 1]}`).join(' und ');
+  }
+
+  let jzMode = 'heute';
+  function openJagdzeitSheet() {
+    const jz = window.JAGDZEITEN_NRW;
+    const today = new Date();
+    const datum = today.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    let openCount = 0;
+    const groups = jz.groups.map((g) => {
+      const rows = g.items.map((it) => {
+        const periods = jzPeriods(it, today);
+        const open = jzOpen(periods, today);
+        if (open) openCount++;
+        if (jzMode === 'heute' && !open) return '';
+        return `<div class="jz-row"><div class="grow">
+            <div class="title">${esc(it.art)}${it.detail ? ` <span style="font-weight:400">– ${esc(it.detail)}</span>` : ''}</div>
+            <div class="sub">${esc(jzText(periods))}</div>
+            ${it.note ? `<div class="note">${esc(jz.notes[it.note])}</div>` : ''}
+          </div><span class="badge ${open ? 'open' : 'closed'}">${open ? 'Jagdzeit' : 'Schonzeit'}</span></div>`;
+      }).join('');
+      const n = g.items.filter((it) => jzOpen(jzPeriods(it, today), today)).length;
+      return `<details class="jz-group" ${jzMode === 'heute' || g === jz.groups[0] ? 'open' : ''}>
+        <summary>${esc(g.name)}<small>${n} von ${g.items.length} jagdbar</small></summary>
+        ${rows || '<div class="jz-empty">Heute keine Jagdzeit.</div>'}
+      </details>`;
+    }).join('');
+    openSheet(`
+      <h2>Jagdzeiten NRW</h2>
+      <p>${esc(datum)} · heute <b>${openCount}</b> Arten/Klassen mit Jagdzeit</p>
+      <div class="seg"><button data-m="heute" class="${jzMode === 'heute' ? 'on' : ''}">Heute jagdbar</button><button data-m="alle" class="${jzMode === 'alle' ? 'on' : ''}">Alle Wildarten</button></div>
+      ${groups}
+      <p class="muted-note">Stand: ${esc(jz.stand)}. Angaben ohne Gewähr – Allgemeinverfügungen der unteren Jagdbehörde und Bundesrecht (z. B. § 22 Abs. 4 BJagdG, Elterntierschutz) beachten.
+        <a href="${esc(jz.quelle)}" target="_blank" rel="noopener">Übersicht des LJV NRW</a></p>`, (root) => {
+      root.querySelectorAll('[data-m]').forEach((b) => b.addEventListener('click', () => { jzMode = b.dataset.m; openJagdzeitSheet(); }));
+    });
+  }
+  $('btnJagdzeit').addEventListener('click', openJagdzeitSheet);
 
   // ---------- Online-Synchronisierung (Supabase) ----------
   const cloud = window.revierAuth && window.revierAuth.cloud;

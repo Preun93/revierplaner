@@ -12,7 +12,8 @@ Web-App zum Einzeichnen eines Jagdreviers auf einer Satellitenkarte – inspirie
 - Kartenansichten: Satellit (mit/ohne Beschriftung), Straßenkarte, Topografisch
 - Ortssuche und eigener Standort
 - **Kompass** unten links (passend zur eingenordeten Karte) mit blauem **Windpfeil**
-- **Wetter** im Revier: Temperatur, Wetterlage, Windrichtung/-stärke und Vorschau der nächsten Stunden (Open-Meteo)
+- **Wetter** im Revier: Temperatur, Wetterlage, Windrichtung/-stärke und Vorschau der nächsten Stunden (Open-Meteo), Sonnenauf-/-untergang und Nachtzeit nach § 19 BJagdG
+- **Jagdzeiten NRW** (Kalender-Symbol oben): heute jagdbare Wildarten bzw. alle Arten mit Jagd-/Schonzeit, Stand LJZeitVO 7.1.2025 / LJV-Übersicht 01.09.2025 – ohne Gewähr
 - **Export/Import** als GeoJSON (z. B. für QGIS, Google Earth) und Sicherung aller Reviere
 
 Die Daten werden ausschließlich im Browser (localStorage) gespeichert. Regelmäßig über **Daten → Sicherung** exportieren!
