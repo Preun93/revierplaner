@@ -210,6 +210,7 @@
     document.body.classList.toggle('hide-labels', !settings.labels);
     renderGrenze();
     renderPunkte();
+    scheduleWeather(false);
   }
 
   function fitRevier(animate) {
@@ -704,6 +705,151 @@
   $('btnLayer').addEventListener('click', openLayerSheet);
   $('btnFilter').addEventListener('click', openFilterSheet);
   $('btnFit').addEventListener('click', () => { if (!fitRevier(true)) toast('Noch keine Grenze oder Punkte vorhanden'); });
+
+  // ---------- Kompass ----------
+  const DIRS16 = ['N', 'NNO', 'NO', 'ONO', 'O', 'OSO', 'SO', 'SSO', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+  const DIRS8 = ['Nord', 'Nordost', 'Ost', 'Südost', 'Süd', 'Südwest', 'West', 'Nordwest'];
+  const dir16 = (deg) => DIRS16[Math.round(((deg % 360) + 360) % 360 / 22.5) % 16];
+  const dir8 = (deg) => DIRS8[Math.round(((deg % 360) + 360) % 360 / 45) % 8];
+
+  let heading = null;
+  let headingOn = false;
+
+  function updateCompass() {
+    $('compassRose').setAttribute('transform', `rotate(${-(heading || 0)} 50 50)`);
+    $('compass').classList.toggle('live', headingOn && heading !== null);
+    $('compassDeg').textContent = headingOn && heading !== null ? `${dir16(heading)} ${Math.round(heading)}°` : '';
+  }
+
+  function onOrientation(e) {
+    let h = null;
+    if (typeof e.webkitCompassHeading === 'number') h = e.webkitCompassHeading; // iOS
+    else if (e.absolute && typeof e.alpha === 'number') h = 360 - e.alpha; // Android
+    if (h === null) return;
+    heading = (h + 360) % 360;
+    updateCompass();
+  }
+
+  function stopHeading() {
+    headingOn = false;
+    heading = null;
+    window.removeEventListener('deviceorientationabsolute', onOrientation);
+    window.removeEventListener('deviceorientation', onOrientation);
+    updateCompass();
+  }
+
+  async function toggleHeading() {
+    if (headingOn) { stopHeading(); toast('Kompass aus – Karte ist eingenordet'); return; }
+    if (typeof DeviceOrientationEvent === 'undefined') { toast('Kein Kompass-Sensor – Karte ist eingenordet'); return; }
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+      try {
+        if (await DeviceOrientationEvent.requestPermission() !== 'granted') { toast('Kompass-Zugriff wurde nicht erlaubt'); return; }
+      } catch (e) { toast('Kompass-Zugriff nicht möglich'); return; }
+    }
+    headingOn = true;
+    window.addEventListener('deviceorientationabsolute', onOrientation);
+    window.addEventListener('deviceorientation', onOrientation);
+    toast('Kompass aktiv – Gerät flach halten');
+    setTimeout(() => {
+      if (headingOn && heading === null) { stopHeading(); toast('Kein Kompass-Sensor gefunden – Karte ist eingenordet'); }
+    }, 1500);
+  }
+  $('compass').addEventListener('click', toggleHeading);
+
+  // ---------- Wetter (Open-Meteo) ----------
+  const WX_CODES = [
+    [[0], 'Klar', '☀️', '🌙'], [[1], 'Überwiegend klar', '🌤️', '🌙'], [[2], 'Teilweise bewölkt', '⛅', '☁️'],
+    [[3], 'Bedeckt', '☁️'], [[45, 48], 'Nebel', '🌫️'], [[51, 53, 55, 56, 57], 'Nieselregen', '🌦️'],
+    [[61, 63, 65, 66, 67], 'Regen', '🌧️'], [[71, 73, 75, 77], 'Schnee', '🌨️'], [[80, 81, 82], 'Regenschauer', '🌦️'],
+    [[85, 86], 'Schneeschauer', '🌨️'], [[95, 96, 99], 'Gewitter', '⛈️']
+  ];
+  function wxInfo(code, isDay) {
+    const w = WX_CODES.find(([codes]) => codes.includes(code)) || [[], 'Unbekannt', '🌡️'];
+    return { text: w[1], icon: (isDay === 0 && w[3]) ? w[3] : w[2] };
+  }
+  const fmtNum = (n) => Math.round(n).toLocaleString('de-DE');
+  // Pfeil zeigt, wohin der Wind weht (Windrichtung = woher er kommt)
+  const windArrowSvg = (from) => `<svg viewBox="0 0 24 24" style="transform:rotate(${from + 180}deg)"><path d="M12 20V5M6 10l6-6 6 6"/></svg>`;
+
+  let weather = null;
+  let wxLast = { at: 0, latlng: null };
+  let wxTimer = null;
+
+  function weatherPoint() {
+    if (grenzeLayer) return grenzeLayer.getBounds().getCenter();
+    const r = aktiv();
+    if (r.punkte.length) return L.latLngBounds(r.punkte.map((p) => [p.lat, p.lng])).getCenter();
+    return map.getCenter();
+  }
+
+  async function loadWeather(force) {
+    const pt = weatherPoint();
+    const fresh = Date.now() - wxLast.at < 10 * 60 * 1000;
+    if (!force && fresh && wxLast.latlng && wxLast.latlng.distanceTo(pt) < 3000) return;
+    const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + pt.lat.toFixed(3) + '&longitude=' + pt.lng.toFixed(3) +
+      '&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,is_day,wind_speed_10m,wind_direction_10m,wind_gusts_10m' +
+      '&hourly=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m&forecast_hours=9&timezone=auto';
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(res.status);
+      weather = await res.json();
+      wxLast = { at: Date.now(), latlng: pt };
+      renderWeather();
+    } catch (e) {
+      if (!weather) { $('wxTemp').textContent = '–'; $('wxWind').textContent = 'Wetter nicht verfügbar'; }
+    }
+  }
+  function scheduleWeather(force) {
+    clearTimeout(wxTimer);
+    wxTimer = setTimeout(() => loadWeather(force), force ? 0 : 1200);
+  }
+
+  function renderWeather() {
+    const c = weather.current;
+    const info = wxInfo(c.weather_code, c.is_day);
+    $('wxIcon').textContent = info.icon;
+    $('wxTemp').textContent = `${fmtNum(c.temperature_2m)} °C`;
+    $('wxWind').textContent = `Wind ${dir16(c.wind_direction_10m)} · ${fmtNum(c.wind_speed_10m)} km/h`;
+    $('weatherBtn').title = `${info.text} – Details anzeigen`;
+    $('windArrow').style.display = '';
+    $('windArrow').setAttribute('transform', `rotate(${c.wind_direction_10m} 50 50)`);
+    $('compass').title = `Wind aus ${dir8(c.wind_direction_10m)} (${Math.round(c.wind_direction_10m)}°) – antippen für Live-Kompass`;
+  }
+
+  function openWeatherSheet() {
+    if (!weather) { loadWeather(true); toast('Wetter wird geladen …'); return; }
+    const c = weather.current;
+    const info = wxInfo(c.weather_code, c.is_day);
+    const h = weather.hourly;
+    const hours = h.time.slice(1, 9).map((t, i) => {
+      const k = i + 1;
+      const wi = wxInfo(h.weather_code[k], 1);
+      return `<div class="wx-hour"><div class="t">${t.slice(11, 16)}</div><div class="e">${wi.icon}</div>
+        <b>${fmtNum(h.temperature_2m[k])}°</b>${windArrowSvg(h.wind_direction_10m[k])}
+        <div class="t">${dir16(h.wind_direction_10m[k])} ${fmtNum(h.wind_speed_10m[k])}</div></div>`;
+    }).join('');
+    const stand = new Date(wxLast.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    openSheet(`
+      <h2>Wetter im Revier</h2>
+      <div class="wx-big"><span class="e">${info.icon}</span>
+        <div><b>${fmtNum(c.temperature_2m)} °C</b><span style="color:var(--muted)">${info.text} · gefühlt ${fmtNum(c.apparent_temperature)} °C</span></div>
+      </div>
+      <div class="stats">
+        <div class="stat wide"><div class="wind-big">${windArrowSvg(c.wind_direction_10m)}<div><b>${dir16(c.wind_direction_10m)}</b><small>Wind aus ${dir8(c.wind_direction_10m)} (${Math.round(c.wind_direction_10m)}°)</small></div></div></div>
+        <div class="stat"><b>${fmtNum(c.wind_speed_10m)} km/h</b><small>Wind, Böen ${fmtNum(c.wind_gusts_10m)} km/h</small></div>
+        <div class="stat"><b>${fmtNum(c.relative_humidity_2m)} %</b><small>Luftfeuchte</small></div>
+      </div>
+      <h3>Nächste Stunden</h3>
+      <div class="wx-hours">${hours}</div>
+      <p class="muted-note">Der blaue Pfeil zeigt, wohin der Wind weht. Stand ${stand} Uhr · Daten: Open-Meteo.com</p>
+      <div class="btn-row"><button class="btn" data-a="reload">Aktualisieren</button></div>`, (root) => {
+      root.querySelector('[data-a="reload"]').addEventListener('click', async () => { await loadWeather(true); openWeatherSheet(); });
+    });
+  }
+  $('weatherBtn').addEventListener('click', openWeatherSheet);
+  map.on('moveend', () => { if (!grenzeLayer) scheduleWeather(false); });
+  setInterval(() => loadWeather(true), 15 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') scheduleWeather(false); });
 
   // ---------- Online-Synchronisierung (Supabase) ----------
   const cloud = window.revierAuth && window.revierAuth.cloud;

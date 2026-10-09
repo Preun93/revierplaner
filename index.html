@@ -81,6 +81,38 @@
     <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
   </button>
 
+  <!-- Kompass & Wetter unten links -->
+  <div class="hud">
+    <button class="compass" id="compass" title="Kompass (antippen für Live-Ausrichtung)" aria-label="Kompass">
+      <svg viewBox="0 0 100 100" class="compass-svg">
+        <circle cx="50" cy="50" r="47" class="c-ring"/>
+        <g id="compassRose">
+          <g class="c-ticks">
+            <path d="M50 7v7M50 86v7M7 50h7M86 50h7"/>
+            <path d="M80.4 19.6l-3.5 3.5M19.6 80.4l3.5-3.5M19.6 19.6l3.5 3.5M80.4 80.4l-3.5-3.5" class="minor"/>
+          </g>
+          <g id="windArrow" class="c-wind" style="display:none">
+            <path d="M50 12v40"/>
+            <path d="M42 46l8 12 8-12z" class="head"/>
+          </g>
+          <text x="50" y="27" class="c-n">N</text>
+          <text x="77" y="54" class="c-l">O</text>
+          <text x="50" y="81" class="c-l">S</text>
+          <text x="23" y="54" class="c-l">W</text>
+        </g>
+        <path d="M50 1l5 8h-10z" class="c-heading"/>
+      </svg>
+      <span class="compass-deg" id="compassDeg"></span>
+    </button>
+    <button class="weather" id="weatherBtn" title="Wetter im Revier">
+      <span class="wx-icon" id="wxIcon">⛅</span>
+      <span class="wx-text">
+        <b id="wxTemp">–</b>
+        <small id="wxWind">Wetter lädt …</small>
+      </span>
+    </button>
+  </div>
+
   <!-- Hinweisleiste im Platzier-/Zeichenmodus -->
   <div class="mode-banner" id="modeBanner" hidden>
     <span id="modeText"></span>

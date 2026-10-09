@@ -11,6 +11,8 @@ Web-App zum Einzeichnen eines Jagdreviers auf einer Satellitenkarte – inspirie
 - **Filter** nach Punktart, Namen ein-/ausblenden
 - Kartenansichten: Satellit (mit/ohne Beschriftung), Straßenkarte, Topografisch
 - Ortssuche und eigener Standort
+- **Kompass** unten links (antippen: Live-Ausrichtung per Handy-Sensor) mit blauem **Windpfeil**
+- **Wetter** im Revier: Temperatur, Wetterlage, Windrichtung/-stärke und Vorschau der nächsten Stunden (Open-Meteo)
 - **Export/Import** als GeoJSON (z. B. für QGIS, Google Earth) und Sicherung aller Reviere
 
 Die Daten werden ausschließlich im Browser (localStorage) gespeichert. Regelmäßig über **Daten → Sicherung** exportieren!
