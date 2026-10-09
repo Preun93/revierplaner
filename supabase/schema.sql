@@ -8,6 +8,7 @@ create table if not exists public.revierplaner_state (
 );
 
 -- Nur angemeldete Benutzer dürfen lesen und schreiben.
+grant select, insert, update on public.revierplaner_state to authenticated;
 alter table public.revierplaner_state enable row level security;
 
 create policy "Angemeldete lesen" on public.revierplaner_state
