@@ -712,49 +712,8 @@
   const dir16 = (deg) => DIRS16[Math.round(((deg % 360) + 360) % 360 / 22.5) % 16];
   const dir8 = (deg) => DIRS8[Math.round(((deg % 360) + 360) % 360 / 45) % 8];
 
-  let heading = null;
-  let headingOn = false;
-
-  function updateCompass() {
-    $('compassRose').setAttribute('transform', `rotate(${-(heading || 0)} 50 50)`);
-    $('compass').classList.toggle('live', headingOn && heading !== null);
-    $('compassDeg').textContent = headingOn && heading !== null ? `${dir16(heading)} ${Math.round(heading)}°` : '';
-  }
-
-  function onOrientation(e) {
-    let h = null;
-    if (typeof e.webkitCompassHeading === 'number') h = e.webkitCompassHeading; // iOS
-    else if (e.absolute && typeof e.alpha === 'number') h = 360 - e.alpha; // Android
-    if (h === null) return;
-    heading = (h + 360) % 360;
-    updateCompass();
-  }
-
-  function stopHeading() {
-    headingOn = false;
-    heading = null;
-    window.removeEventListener('deviceorientationabsolute', onOrientation);
-    window.removeEventListener('deviceorientation', onOrientation);
-    updateCompass();
-  }
-
-  async function toggleHeading() {
-    if (headingOn) { stopHeading(); toast('Kompass aus – Karte ist eingenordet'); return; }
-    if (typeof DeviceOrientationEvent === 'undefined') { toast('Kein Kompass-Sensor – Karte ist eingenordet'); return; }
-    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-      try {
-        if (await DeviceOrientationEvent.requestPermission() !== 'granted') { toast('Kompass-Zugriff wurde nicht erlaubt'); return; }
-      } catch (e) { toast('Kompass-Zugriff nicht möglich'); return; }
-    }
-    headingOn = true;
-    window.addEventListener('deviceorientationabsolute', onOrientation);
-    window.addEventListener('deviceorientation', onOrientation);
-    toast('Kompass aktiv – Gerät flach halten');
-    setTimeout(() => {
-      if (headingOn && heading === null) { stopHeading(); toast('Kein Kompass-Sensor gefunden – Karte ist eingenordet'); }
-    }, 1500);
-  }
-  $('compass').addEventListener('click', toggleHeading);
+  // Die Karte ist immer eingenordet – der Kompass ist fest; Antippen zeigt Wind-Details.
+  $('compass').addEventListener('click', () => openWeatherSheet());
 
   // ---------- Wetter (Open-Meteo) ----------
   const WX_CODES = [
@@ -813,7 +772,7 @@
     $('weatherBtn').title = `${info.text} – Details anzeigen`;
     $('windArrow').style.display = '';
     $('windArrow').setAttribute('transform', `rotate(${c.wind_direction_10m} 50 50)`);
-    $('compass').title = `Wind aus ${dir8(c.wind_direction_10m)} (${Math.round(c.wind_direction_10m)}°) – antippen für Live-Kompass`;
+    $('compass').title = `Wind aus ${dir8(c.wind_direction_10m)} (${Math.round(c.wind_direction_10m)}°)`;
   }
 
   function openWeatherSheet() {

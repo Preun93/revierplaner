@@ -128,15 +128,6 @@ body.locked > :not(.login):not(script) { visibility: hidden; }
 .c-ticks .minor { stroke: #b9c2bc; stroke-width: 1.6; }
 .c-wind path { stroke: #2f80ed; stroke-width: 5; }
 .c-wind .head { fill: #2f80ed; stroke-width: 1; }
-.c-heading { fill: var(--orange); stroke: none; display: none; }
-.compass.live .c-heading { display: block; }
-.compass.live .c-ring { stroke: var(--orange); stroke-width: 3; }
-.compass-deg {
-  position: absolute; left: 50%; top: -20px; transform: translateX(-50%);
-  background: var(--bg-dark); color: #fff; font-size: 11px; font-weight: 700;
-  padding: 2px 6px; border-radius: 8px; white-space: nowrap;
-}
-.compass-deg:empty { display: none; }
 .weather {
   display: flex; align-items: center; gap: 8px; height: 54px; padding: 0 12px 0 8px;
   border: 0; border-radius: var(--radius); background: rgba(255, 255, 255, .94); color: var(--text);
