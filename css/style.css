@@ -40,8 +40,6 @@ body.locked > :not(.login):not(script) { visibility: hidden; }
 .login h1 { text-align: center; font-size: 24px; margin: 0 0 4px; }
 .login p { text-align: center; color: var(--muted); margin: 0 0 20px; font-size: 14px; }
 .login .btn { width: 100%; margin-top: 8px; }
-.remember { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 4px 0 8px; }
-.remember input { width: 18px; height: 18px; accent-color: var(--green); }
 .login-error {
   background: #fdecea; color: #b3261e; border-radius: 10px; padding: 10px 12px; font-size: 14px; margin-bottom: 8px;
 }
@@ -60,6 +58,8 @@ body.locked > :not(.login):not(script) { visibility: hidden; }
   display: flex; flex-direction: column;
 }
 .revier-label { font-size: 13px; opacity: .85; }
+.sync-status { margin-left: 6px; font-size: 12px; }
+.sync-status[data-status="offline"] { color: #ffcf70; }
 .revier-name {
   display: flex; align-items: center; gap: 6px;
   font-size: 22px; font-weight: 700; white-space: nowrap; overflow: hidden;

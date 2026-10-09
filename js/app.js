@@ -98,7 +98,9 @@
   Object.keys(TYPES).forEach((k) => { if (settings.filter[k] === undefined) settings.filter[k] = true; });
 
   const save = () => {
+    state.updatedAt = Date.now();
     if (!storageSet(STORAGE_KEY, state)) toast('Speichern im Browser nicht möglich – bitte exportieren.');
+    schedulePush();
   };
   const saveSettings = () => storageSet(SETTINGS_KEY, settings);
   const aktiv = () => state.reviere.find((r) => r.id === state.aktivId);
@@ -646,14 +648,16 @@
   function openDataSheet() {
     openSheet(`
       <h2>Daten</h2>
-      <p>Deine Daten werden nur in diesem Browser gespeichert. Exportiere sie regelmäßig als Sicherung oder um sie auf ein anderes Gerät zu übertragen.</p>
+      <p>${window.revierAuth && window.revierAuth.cloud
+        ? 'Deine Daten werden online gespeichert und auf allen Geräten synchronisiert. Eine Export-Datei dient als zusätzliche Sicherung.'
+        : 'Deine Daten werden nur in diesem Browser gespeichert. Exportiere sie regelmäßig als Sicherung oder um sie auf ein anderes Gerät zu übertragen.'}</p>
       <div class="btn-row" style="flex-direction:column">
         <button class="btn primary" data-a="exp">Aktuelles Revier als GeoJSON exportieren</button>
         <button class="btn" data-a="all">Sicherung aller Reviere herunterladen</button>
         <button class="btn" data-a="imp">GeoJSON / Sicherung importieren</button>
         <button class="btn danger" data-a="logout">Abmelden</button>
       </div>`, (root) => {
-      root.querySelector('[data-a="logout"]').addEventListener('click', () => window.revierLogout());
+      root.querySelector('[data-a="logout"]').addEventListener('click', () => window.revierAuth.logout());
       root.querySelector('[data-a="exp"]').addEventListener('click', () => download(safeName(aktiv().name) + '.geojson', revierToGeoJSON(aktiv())));
       root.querySelector('[data-a="all"]').addEventListener('click', () => download('revierplaner_sicherung_' + new Date().toISOString().slice(0, 10) + '.json', { revierplaner: 1, reviere: state.reviere }));
       root.querySelector('[data-a="imp"]').addEventListener('click', () => $('importFile').click());
@@ -701,9 +705,120 @@
   $('btnFilter').addEventListener('click', openFilterSheet);
   $('btnFit').addEventListener('click', () => { if (!fitRevier(true)) toast('Noch keine Grenze oder Punkte vorhanden'); });
 
+  // ---------- Online-Synchronisierung (Supabase) ----------
+  const cloud = window.revierAuth && window.revierAuth.cloud;
+  const SYNC_TABLE = 'revierplaner_state';
+  const SYNC_ROW = 'main';
+  const SYNCED_KEY = 'revierplaner.synced';
+  const DIRTY_KEY = 'revierplaner.dirty';
+  const clientId = uid();
+  let pushTimer = null;
+  let syncReady = false;
+  let pendingRemote = null;
+
+  function setSyncStatus(status) {
+    const el = $('syncStatus');
+    if (!cloud) { el.textContent = ''; return; }
+    const texts = { ok: '✓ synchronisiert', busy: '↻ speichert …', offline: '⚠ offline – wird nachgeholt', load: '↻ lädt …' };
+    el.textContent = texts[status] || '';
+    el.dataset.status = status;
+  }
+
+  function schedulePush() {
+    if (!cloud) return;
+    storageSet(DIRTY_KEY, true);
+    if (!syncReady) return;
+    setSyncStatus('busy');
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(pushNow, 800);
+  }
+
+  async function pushNow() {
+    clearTimeout(pushTimer);
+    const data = Object.assign({}, state, { clientId });
+    const { error } = await cloud.from(SYNC_TABLE).upsert({ id: SYNC_ROW, data, updated_at: new Date().toISOString() });
+    if (error) {
+      setSyncStatus('offline');
+      return false;
+    }
+    storageSet(DIRTY_KEY, false);
+    storageSet(SYNCED_KEY, true);
+    setSyncStatus('ok');
+    return true;
+  }
+
+  function isValidState(d) {
+    return d && Array.isArray(d.reviere) && d.reviere.length > 0;
+  }
+
+  function applyRemote(remote) {
+    if (mode || !$('sheet').hidden || selected) { pendingRemote = remote; return; }
+    pendingRemote = null;
+    const keepAktiv = state.aktivId;
+    state = { reviere: remote.reviere, aktivId: remote.aktivId, updatedAt: remote.updatedAt || 0 };
+    if (state.reviere.some((r) => r.id === keepAktiv)) state.aktivId = keepAktiv;
+    if (!state.reviere.some((r) => r.id === state.aktivId)) state.aktivId = state.reviere[0].id;
+    storageSet(STORAGE_KEY, state);
+    renderAll();
+  }
+  // Zurückgestellte Änderungen anwenden, sobald nichts mehr bearbeitet wird
+  setInterval(() => { if (pendingRemote) applyRemote(pendingRemote); }, 1500);
+
+  const hasContent = (r) => r.grenze || r.punkte.length;
+
+  async function pull() {
+    setSyncStatus('load');
+    const { data: row, error } = await cloud.from(SYNC_TABLE).select('data').eq('id', SYNC_ROW).maybeSingle();
+    if (error) { setSyncStatus('offline'); return; }
+    const remote = row && row.data;
+    const firstSync = !storageGet(SYNCED_KEY);
+    const dirty = storageGet(DIRTY_KEY);
+
+    if (!isValidState(remote)) {
+      // Noch nichts online: lokale Daten hochladen
+      await pushNow();
+    } else if (firstSync) {
+      // Erstes Mal auf diesem Gerät: lokale Reviere mit Inhalt zusätzlich übernehmen
+      const ids = new Set(remote.reviere.map((r) => r.id));
+      const extra = state.reviere.filter((r) => !ids.has(r.id) && hasContent(r));
+      applyRemote(Object.assign({}, remote, { reviere: remote.reviere.concat(extra) }));
+      if (extra.length) { state.updatedAt = Date.now(); storageSet(STORAGE_KEY, state); await pushNow(); toast(`${extra.length} lokale(s) Revier(e) hochgeladen`); }
+      else { storageSet(SYNCED_KEY, true); setSyncStatus('ok'); }
+      fitRevier(true);
+    } else if (dirty && (state.updatedAt || 0) >= (remote.updatedAt || 0)) {
+      await pushNow();
+    } else if ((remote.updatedAt || 0) > (state.updatedAt || 0)) {
+      applyRemote(remote);
+      storageSet(DIRTY_KEY, false);
+      setSyncStatus('ok');
+    } else {
+      setSyncStatus(dirty ? 'busy' : 'ok');
+      if (dirty) await pushNow();
+    }
+  }
+
+  async function startSync() {
+    if (!cloud) return;
+    await pull();
+    syncReady = true;
+    cloud.channel('revierplaner')
+      .on('postgres_changes', { event: '*', schema: 'public', table: SYNC_TABLE }, (payload) => {
+        const d = payload.new && payload.new.data;
+        if (!isValidState(d) || d.clientId === clientId) return;
+        if ((d.updatedAt || 0) > (state.updatedAt || 0)) {
+          applyRemote(d);
+          toast('Revierdaten aktualisiert');
+        }
+      })
+      .subscribe();
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pull(); });
+    window.addEventListener('online', () => pull());
+  }
+
   // ---------- Start ----------
   renderAll();
   updateFilterBtn();
+  if (window.revierAuth) window.revierAuth.onLogin(startSync);
   if (!fitRevier(false)) {
     setTimeout(() => toast('Tippe auf „Grenze“, um dein Revier einzuzeichnen'), 600);
   }

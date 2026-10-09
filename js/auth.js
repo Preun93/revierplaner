@@ -1,21 +1,53 @@
-/* Einfache Zugangssperre für den Revierplaner.
- * Hinweis: Die Prüfung läuft im Browser (statische Seite auf GitHub Pages).
- * Es wird nur ein SHA-256-Hash von "name:passwort" hinterlegt, kein Klartext. */
+/* Anmeldung für den Revierplaner.
+ * Mit Supabase-Konfiguration (js/config.js): echte Anmeldung über Supabase Auth.
+ *   Der Name wird intern zur E-Mail "<name>@revierplaner.app".
+ * Ohne Konfiguration: einfache lokale Sperre über einen SHA-256-Hash. */
 (function () {
   'use strict';
 
   const CREDENTIAL_HASH = 'd8736371035f80552c37f2cda9962ccf72e46b4ea11ad2543c2f0cf9ab7bbdf2';
   const SESSION_KEY = 'revierplaner.auth';
+  const EMAIL_DOMAIN = 'revierplaner.app';
 
   const $ = (id) => document.getElementById(id);
+  const cfg = window.REVIER_CONFIG || {};
+  const cloud = cfg.supabaseUrl && cfg.supabaseAnonKey && window.supabase
+    ? window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey)
+    : null;
 
-  function storedToken() {
-    try { return localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY); } catch (e) { return null; }
+  // Wird von app.js genutzt
+  window.revierAuth = {
+    cloud,
+    loggedIn: false,
+    onLogin(cb) {
+      if (this.loggedIn) cb();
+      else document.addEventListener('revier:login', cb, { once: true });
+    },
+    async logout() {
+      if (cloud) await cloud.auth.signOut();
+      try {
+        localStorage.removeItem(SESSION_KEY);
+        sessionStorage.removeItem(SESSION_KEY);
+      } catch (e) { /* ignorieren */ }
+      location.reload();
+    }
+  };
+
+  function unlock() {
+    document.body.classList.remove('locked');
+    $('login').hidden = true;
+    window.revierAuth.loggedIn = true;
+    document.dispatchEvent(new Event('revier:login'));
   }
-  function storeToken(remember) {
-    try {
-      (remember ? localStorage : sessionStorage).setItem(SESSION_KEY, CREDENTIAL_HASH);
-    } catch (e) { /* ohne Speicher bleibt der Login nur bis zum Neuladen */ }
+
+  function showError(msg) {
+    $('loginError').textContent = msg;
+    $('loginError').hidden = false;
+  }
+
+  function showLogin() {
+    $('login').hidden = false;
+    $('loginName').focus();
   }
 
   async function sha256(text) {
@@ -23,48 +55,53 @@
     return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
   }
 
-  function unlock() {
-    document.body.classList.remove('locked');
-    $('login').hidden = true;
+  async function localLogin(name, pass) {
+    const hash = await sha256(name + ':' + pass);
+    if (hash !== CREDENTIAL_HASH) return false;
+    try { localStorage.setItem(SESSION_KEY, CREDENTIAL_HASH); } catch (e) { /* nur bis zum Neuladen */ }
+    return true;
   }
 
-  window.revierLogout = function () {
-    try {
-      localStorage.removeItem(SESSION_KEY);
-      sessionStorage.removeItem(SESSION_KEY);
-    } catch (e) { /* ignorieren */ }
-    location.reload();
-  };
-
-  if (storedToken() === CREDENTIAL_HASH) {
-    unlock();
-    return;
+  async function cloudLogin(name, pass) {
+    const { error } = await cloud.auth.signInWithPassword({ email: `${name}@${EMAIL_DOMAIN}`, password: pass });
+    if (!error) return true;
+    if (/invalid/i.test(error.message)) return false;
+    throw error;
   }
-
-  $('login').hidden = false;
-  $('loginName').focus();
 
   $('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = $('loginName').value.trim().toLowerCase();
     const pass = $('loginPass').value;
+    const btn = $('loginForm').querySelector('button[type="submit"]');
     $('loginError').hidden = true;
-    let hash = '';
+    btn.disabled = true;
     try {
-      hash = await sha256(name + ':' + pass);
+      const ok = cloud ? await cloudLogin(name, pass) : await localLogin(name, pass);
+      if (ok) {
+        unlock();
+      } else {
+        showError('Name oder Passwort ist falsch.');
+        $('loginPass').value = '';
+        $('loginPass').focus();
+      }
     } catch (err) {
-      $('loginError').textContent = 'Anmeldung in diesem Browser nicht möglich (nur über https).';
-      $('loginError').hidden = false;
-      return;
-    }
-    if (hash === CREDENTIAL_HASH) {
-      storeToken($('loginRemember').checked);
-      unlock();
-    } else {
-      $('loginError').textContent = 'Name oder Passwort ist falsch.';
-      $('loginError').hidden = false;
-      $('loginPass').value = '';
-      $('loginPass').focus();
+      showError('Anmeldung fehlgeschlagen: ' + (err.message || 'keine Verbindung'));
+    } finally {
+      btn.disabled = false;
     }
   });
+
+  // Bestehende Anmeldung wiederherstellen
+  if (cloud) {
+    cloud.auth.getSession().then(({ data }) => {
+      if (data && data.session) unlock();
+      else showLogin();
+    }).catch(showLogin);
+  } else {
+    let token = null;
+    try { token = localStorage.getItem(SESSION_KEY); } catch (e) { /* ignorieren */ }
+    if (token === CREDENTIAL_HASH) unlock();
+    else showLogin();
+  }
 })();

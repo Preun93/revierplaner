@@ -15,9 +15,20 @@ Web-App zum Einzeichnen eines Jagdreviers auf einer Satellitenkarte – inspirie
 
 Die Daten werden ausschließlich im Browser (localStorage) gespeichert. Regelmäßig über **Daten → Sicherung** exportieren!
 
-## Anmeldung
-Beim Öffnen erscheint eine Anmeldeseite. Die Zugangsdaten werden nur als SHA-256-Hash in `js/auth.js` geprüft.
-**Hinweis:** Da die App eine statische Seite ist, ist dies eine einfache Zugangssperre und kein echter Schutz – wer den Quellcode kennt, kann sie umgehen. Das GitHub-Repository sollte daher privat sein bzw. keine sensiblen Daten enthalten (die Revierdaten selbst liegen ohnehin nur im Browser).
+## Anmeldung & Synchronisierung
+Beim Öffnen erscheint eine Anmeldeseite (Name **Welte**).
+
+- **Mit Supabase** (empfohlen): Die Revierdaten liegen online und sind auf allen Geräten gleich; Änderungen erscheinen auf anderen geöffneten Geräten live. Die Anmeldung läuft über Supabase Auth – ohne Login sind die Daten nicht abrufbar.
+- **Ohne Supabase** (`js/config.js` leer): Daten nur im Browser, einfache lokale Zugangssperre.
+
+### Supabase einrichten (einmalig)
+1. Auf https://supabase.com kostenlos registrieren → **New project** anlegen (Region z. B. Frankfurt).
+2. **SQL Editor** → Inhalt von [`supabase/schema.sql`](supabase/schema.sql) einfügen → **Run**.
+3. **Authentication → Users → Add user → Create new user**: E-Mail `welte@revierplaner.app`, Passwort festlegen, **Auto Confirm User** anhaken.
+4. **Authentication → Sign In / Providers**: **Allow new users to sign up** ausschalten (sonst könnte sich jeder selbst ein Konto anlegen).
+5. **Project Settings → API**: *Project URL* und *anon public key* in `js/config.js` eintragen, committen und pushen.
+
+Weitere Benutzer: in Schritt 3 einfach `<name>@revierplaner.app` anlegen – angemeldet wird mit `<name>`.
 
 ## Bedienung
 1. Ort suchen oder Standort-Button nutzen.
