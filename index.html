@@ -73,6 +73,19 @@
     <button id="modeCancel">Abbrechen</button>
   </div>
 
+  <!-- Leiste für ausgewählten Punkt -->
+  <div class="sel-bar" id="selBar" hidden>
+    <span class="type-dot" id="selDot"></span>
+    <div class="grow">
+      <div class="title" id="selName"></div>
+      <div class="sub"><span id="selType"></span></div>
+      <div class="hint">Ziehen zum Verschieben</div>
+    </div>
+    <button id="selEdit" title="Bearbeiten" aria-label="Bearbeiten"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></svg></button>
+    <button id="selDel" class="danger" title="Löschen" aria-label="Löschen"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
+    <button id="selClose" title="Schließen" aria-label="Auswahl aufheben"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+
   <!-- Bottom-Sheet (wird dynamisch befüllt) -->
   <div class="sheet-backdrop" id="sheetBackdrop" hidden></div>
   <section class="sheet" id="sheet" hidden role="dialog" aria-modal="true">

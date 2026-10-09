@@ -138,6 +138,7 @@
   });
 
   const grenzeGroup = L.layerGroup().addTo(map);
+  const grenzeHandles = L.layerGroup().addTo(map);
   const punkteGroup = L.layerGroup().addTo(map);
   let grenzeLayer = null;
   const markerById = new Map();
@@ -149,51 +150,53 @@
       className: 'pin',
       html: `<div class="pin-body" style="--c:${t.color}">${svg(t.icon)}</div><div class="pin-label">${esc(p.name)}</div>`,
       iconSize: [44, 44],
-      iconAnchor: [22, 53],
-      popupAnchor: [0, -50]
+      iconAnchor: [22, 53]
     });
-  }
-
-  function popupContent(p) {
-    const t = TYPES[p.typ] || TYPES.ansitz;
-    const el = document.createElement('div');
-    el.innerHTML = `
-      <div class="pop-type" style="color:${t.color}">${esc(t.label)}</div>
-      <div class="pop-title">${esc(p.name) || '<i>ohne Name</i>'}</div>
-      ${p.notiz ? `<div class="pop-note">${esc(p.notiz)}</div>` : ''}
-      <div class="pop-actions">
-        <button data-a="edit">Bearbeiten</button>
-        <button data-a="move">Verschieben</button>
-        <button data-a="del" class="danger">Löschen</button>
-      </div>`;
-    el.addEventListener('click', (e) => {
-      const a = e.target.dataset && e.target.dataset.a;
-      if (!a) return;
-      map.closePopup();
-      if (a === 'edit') openPunktEditor(p);
-      if (a === 'move') startMove(p);
-      if (a === 'del') deletePunkt(p);
-    });
-    return el;
   }
 
   function renderGrenze() {
     grenzeGroup.clearLayers();
+    grenzeHandles.clearLayers();
     grenzeLayer = null;
     const r = aktiv();
     if (!r.grenze) return;
     const rings = r.grenze.geometry.coordinates.map((ring) => ring.map(([lng, lat]) => [lat, lng]));
     grenzeLayer = L.polygon(rings, { color: BOUNDARY_COLOR, weight: 4, fillOpacity: .06, interactive: false });
     grenzeGroup.addLayer(grenzeLayer);
+    renderGrenzeHandles();
+  }
+
+  // Antippbare Grenzlinie und Eckpunkte – ein Tipp startet die Bearbeitung
+  function renderGrenzeHandles() {
+    grenzeHandles.clearLayers();
+    if (!grenzeLayer) return;
+    const onTap = () => {
+      if (mode) return;
+      deselectPunkt();
+      startEditGrenze();
+    };
+    grenzeLayer.getLatLngs().forEach((ring) => {
+      grenzeHandles.addLayer(L.polyline(ring.concat([ring[0]]), { weight: 22, opacity: 0, pmIgnore: true }).on('click', onTap));
+      ring.forEach((ll) => grenzeHandles.addLayer(
+        L.circleMarker(ll, { radius: 6, weight: 3, color: BOUNDARY_COLOR, fillColor: '#fff', fillOpacity: 1, pmIgnore: true }).on('click', onTap)
+      ));
+    });
   }
 
   function renderPunkte() {
+    deselectPunkt();
     punkteGroup.clearLayers();
     markerById.clear();
     aktiv().punkte.forEach((p) => {
       if (!settings.filter[p.typ]) return;
       const m = L.marker([p.lat, p.lng], { icon: pinIcon(p), pmIgnore: true, riseOnHover: true });
-      m.bindPopup(() => popupContent(p));
+      m.on('click', () => selectPunkt(p));
+      m.on('dragend', () => {
+        const ll = m.getLatLng();
+        p.lat = ll.lat; p.lng = ll.lng;
+        save();
+        toast('Position gespeichert');
+      });
       punkteGroup.addLayer(m);
       markerById.set(p.id, m);
     });
@@ -243,6 +246,7 @@
     if (e.key !== 'Escape') return;
     if (!$('sheet').hidden) closeSheet();
     else if (mode) cancelMode();
+    else deselectPunkt();
   });
 
   // ---------- Modus (Platzieren / Zeichnen / Bearbeiten / Verschieben) ----------
@@ -252,10 +256,11 @@
     const banner = $('modeBanner');
     if (!m) {
       banner.hidden = true;
-      $('btnAdd').hidden = false;
+      $('btnAdd').hidden = !!selected;
       map.getContainer().style.cursor = '';
       return;
     }
+    deselectPunkt();
     $('modeText').textContent = m.text;
     $('modeDone').hidden = !m.onDone;
     $('modeDone').textContent = m.doneLabel || 'Fertig';
@@ -296,8 +301,43 @@
     setMode({ name: 'place', typ, text: `Auf die Karte tippen: ${TYPES[typ].label} setzen`, cursor: 'crosshair' });
   }
 
+  // ---------- Punkt auswählen ----------
+  let selected = null; // { p, m }
+  function selectPunkt(p) {
+    if (mode) return;
+    if (selected && selected.p === p) return;
+    deselectPunkt();
+    const m = markerById.get(p.id);
+    if (!m) return;
+    selected = { p, m };
+    m.getElement().classList.add('selected');
+    m.setZIndexOffset(1000);
+    m.dragging.enable();
+    const t = TYPES[p.typ] || TYPES.ansitz;
+    $('selDot').style.setProperty('--c', t.color);
+    $('selDot').innerHTML = svg(t.icon);
+    $('selName').textContent = p.name || t.label;
+    $('selType').textContent = t.label + (p.notiz ? ' · ' + p.notiz : '');
+    $('selBar').hidden = false;
+    $('btnAdd').hidden = true;
+  }
+  function deselectPunkt() {
+    if (!selected) return;
+    const { m } = selected;
+    selected = null;
+    m.dragging.disable();
+    m.setZIndexOffset(0);
+    if (m.getElement()) m.getElement().classList.remove('selected');
+    $('selBar').hidden = true;
+    if (!mode) $('btnAdd').hidden = false;
+  }
+  $('selClose').addEventListener('click', deselectPunkt);
+  $('selEdit').addEventListener('click', () => { if (selected) openPunktEditor(selected.p); });
+  $('selDel').addEventListener('click', () => { if (selected) deletePunkt(selected.p); });
+
   map.on('click', (e) => {
-    if (!mode || mode.name !== 'place') return;
+    if (!mode) { deselectPunkt(); return; }
+    if (mode.name !== 'place') return;
     const typ = mode.typ;
     setMode(null);
     const nr = aktiv().punkte.filter((p) => p.typ === typ).length + 1;
@@ -338,6 +378,7 @@
         save();
         closeSheet();
         renderPunkte();
+        if (!isNew && markerById.has(p.id)) selectPunkt(p);
         toast(isNew ? 'Punkt gespeichert' : 'Änderungen gespeichert');
       });
     });
@@ -352,28 +393,10 @@
     toast('Punkt gelöscht');
   }
 
-  function startMove(p) {
-    const m = markerById.get(p.id);
-    if (!m) return;
-    const orig = m.getLatLng();
-    m.dragging.enable();
-    setMode({
-      name: 'move',
-      text: 'Marker an die neue Position ziehen',
-      onDone() {
-        const ll = m.getLatLng();
-        p.lat = ll.lat; p.lng = ll.lng;
-        m.dragging.disable();
-        save();
-        toast('Position gespeichert');
-      },
-      onCancel() { m.dragging.disable(); m.setLatLng(orig); }
-    });
-  }
-
   // ---------- Reviergrenze ----------
   function startDraw() {
     if (grenzeLayer) grenzeLayer.setStyle({ opacity: .35 });
+    grenzeHandles.clearLayers();
     map.pm.enableDraw('Polygon', { finishOn: null });
     setMode({
       name: 'draw',
@@ -401,10 +424,11 @@
   function startEditGrenze() {
     if (!grenzeLayer) return;
     const backup = aktiv().grenze;
+    grenzeHandles.clearLayers();
     grenzeLayer.pm.enable({ allowSelfIntersection: false, snappable: false });
     setMode({
       name: 'edit',
-      text: 'Eckpunkte verschieben; kleine Zwischenpunkte ziehen, um neue Ecken einzufügen',
+      text: 'Eckpunkte ziehen zum Verschieben · kleine Zwischenpunkte ziehen für neue Ecken',
       onDone() {
         grenzeLayer.pm.disable();
         aktiv().grenze = { type: 'Feature', properties: {}, geometry: grenzeLayer.toGeoJSON().geometry };
@@ -511,8 +535,7 @@
         closeSheet();
         if (!settings.filter[p.typ]) { settings.filter[p.typ] = true; saveSettings(); renderPunkte(); }
         map.setView([p.lat, p.lng], Math.max(map.getZoom(), 17));
-        const m = markerById.get(p.id);
-        if (m) setTimeout(() => m.openPopup(), 300);
+        selectPunkt(p);
       }));
     });
   }

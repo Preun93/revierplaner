@@ -99,6 +99,26 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round
 }
 .mode-banner #modeDone { background: var(--green-bright); color: #0d2a1c; }
 
+/* ---------- Auswahl-Leiste ---------- */
+.sel-bar {
+  position: fixed; left: 16px; right: 16px; bottom: calc(var(--safe-bottom) + 24px); z-index: 1001;
+  max-width: 520px; margin: 0 auto;
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 10px;
+}
+.sel-bar[hidden] { display: none; }
+.sel-bar .grow { flex: 1; min-width: 0; }
+.sel-bar .title { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sel-bar .sub, .sel-bar .hint { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sel-bar .hint { color: var(--green); font-weight: 600; }
+.sel-bar button {
+  width: 44px; height: 44px; flex: none; border: 0; border-radius: 12px;
+  background: #eef2ef; color: var(--text); display: grid; place-items: center;
+}
+.sel-bar button svg { width: 22px; height: 22px; }
+.sel-bar button.danger { background: #fdecea; color: #b3261e; }
+
 /* ---------- Marker ---------- */
 .pin { background: none; border: 0; }
 .pin-body {
@@ -115,6 +135,11 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round
   text-shadow: 0 1px 3px #000, 0 0 2px #000; pointer-events: none;
 }
 .hide-labels .pin-label { display: none; }
+.pin.selected .pin-body {
+  transform: rotate(-45deg) scale(1.2);
+  box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--c), 0 4px 12px rgba(0, 0, 0, .5);
+}
+.pin.selected .pin-label { display: block; top: 60px; }
 
 .revier-poly-label {
   background: rgba(15, 22, 18, .75); color: #fff; border: 0; border-radius: 8px;
@@ -194,16 +219,6 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round
   background: var(--bg-dark); color: #fff; padding: 10px 16px; border-radius: 12px; box-shadow: var(--shadow);
   font-size: 14px; max-width: calc(100vw - 32px);
 }
-
-/* Popups */
-.leaflet-popup-content-wrapper { border-radius: 12px; }
-.leaflet-popup-content { margin: 12px 14px; font-size: 14px; }
-.pop-title { font-weight: 700; font-size: 15px; }
-.pop-type { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
-.pop-note { margin: 6px 0; white-space: pre-wrap; }
-.pop-actions { display: flex; gap: 6px; margin-top: 8px; }
-.pop-actions button { border: 0; border-radius: 8px; padding: 7px 10px; background: #eef2ef; font-weight: 600; font-size: 13px; }
-.pop-actions button.danger { background: #fdecea; color: #b3261e; }
 
 .leaflet-control-attribution { font-size: 10px; }
 .leaflet-bottom.leaflet-left { margin-bottom: var(--safe-bottom); }
