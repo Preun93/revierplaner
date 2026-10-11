@@ -174,7 +174,8 @@
     renderGrenzeHandles();
   }
 
-  // Antippbare Grenzlinie und Eckpunkte – ein Tipp startet die Bearbeitung
+  // Unsichtbare, breite Trefferfläche auf der Grenzlinie – ein Tipp startet die Bearbeitung.
+  // Eckpunkte werden nur im Bearbeitungsmodus (Geoman) angezeigt.
   function renderGrenzeHandles() {
     grenzeHandles.clearLayers();
     if (!grenzeLayer) return;
@@ -185,9 +186,6 @@
     };
     grenzeLayer.getLatLngs().forEach((ring) => {
       grenzeHandles.addLayer(L.polyline(ring.concat([ring[0]]), { weight: 22, opacity: 0, pmIgnore: true }).on('click', onTap));
-      ring.forEach((ll) => grenzeHandles.addLayer(
-        L.circleMarker(ll, { radius: 6, weight: 3, color: BOUNDARY_COLOR, fillColor: '#fff', fillOpacity: 1, pmIgnore: true }).on('click', onTap)
-      ));
     });
   }
 
