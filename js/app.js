@@ -675,14 +675,72 @@
     toast('Standort wird ermittelt …');
     map.locate({ setView: true, maxZoom: 17, enableHighAccuracy: true });
   });
-  map.on('locationfound', (e) => {
+  function showLocation(latlng, accuracy) {
     if (locationMarker) locationMarker.remove();
     locationMarker = L.layerGroup([
-      L.circle(e.latlng, { radius: e.accuracy, color: '#4a90e2', weight: 1, fillOpacity: .12, interactive: false }),
-      L.circleMarker(e.latlng, { radius: 8, color: '#fff', weight: 3, fillColor: '#4a90e2', fillOpacity: 1, interactive: false })
+      L.circle(latlng, { radius: accuracy, color: '#4a90e2', weight: 1, fillOpacity: .12, interactive: false }),
+      L.circleMarker(latlng, { radius: 8, color: '#fff', weight: 3, fillColor: '#4a90e2', fillOpacity: 1, interactive: false })
     ]).addTo(map);
-  });
+    if (ringsOn) drawRings(latlng);
+  }
+  map.on('locationfound', (e) => showLocation(e.latlng, e.accuracy));
   map.on('locationerror', () => toast('Standort konnte nicht ermittelt werden'));
+
+  // ---------- Entfernungsringe um den eigenen Standort ----------
+  const RING_DISTANCES = [25, 50, 75, 100, 125, 150, 175, 200];
+  const RING_COLOR = '#ffd84d';
+  const ringGroup = L.layerGroup().addTo(map);
+  let ringsOn = false;
+  let ringWatchId = null;
+  let ringCentered = false;
+
+  function drawRings(center) {
+    ringGroup.clearLayers();
+    RING_DISTANCES.forEach((d) => {
+      const major = d % 100 === 0;
+      ringGroup.addLayer(L.circle(center, {
+        radius: d, color: RING_COLOR, weight: major ? 2.5 : 1.5, opacity: major ? .95 : .8,
+        dashArray: major ? null : '6 6', fill: false, interactive: false, pmIgnore: true
+      }));
+      // Beschriftung am nördlichen Rand des Rings (1° Breite ≈ 111 320 m)
+      ringGroup.addLayer(L.marker([center.lat + d / 111320, center.lng], {
+        icon: L.divIcon({ className: 'ring-label', html: `<span class="${major ? 'major' : ''}">${d} m</span>`, iconSize: [0, 0] }),
+        interactive: false, keyboard: false, pmIgnore: true
+      }));
+    });
+  }
+
+  function startRings() {
+    if (!navigator.geolocation) { toast('Standort wird nicht unterstützt'); return; }
+    ringsOn = true;
+    ringCentered = false;
+    $('btnRings').classList.add('active');
+    toast('Entfernungsringe: Standort wird ermittelt …');
+    ringWatchId = navigator.geolocation.watchPosition((pos) => {
+      const ll = L.latLng(pos.coords.latitude, pos.coords.longitude);
+      showLocation(ll, pos.coords.accuracy);
+      if (!ringCentered) { ringCentered = true; map.setView(ll, Math.max(map.getZoom(), 17)); }
+    }, () => {
+      toast('Standort nicht verfügbar – Ringe ausgeschaltet');
+      stopRings();
+    }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 });
+  }
+
+  function stopRings() {
+    ringsOn = false;
+    if (ringWatchId !== null) navigator.geolocation.clearWatch(ringWatchId);
+    ringWatchId = null;
+    ringGroup.clearLayers();
+    $('btnRings').classList.remove('active');
+  }
+
+  $('btnRings').addEventListener('click', () => {
+    if (ringsOn) { stopRings(); toast('Entfernungsringe aus'); } else startRings();
+  });
+  // Beschriftungen nur bei ausreichendem Zoom
+  const updateRingLabels = () => map.getContainer().classList.toggle('rings-small', map.getZoom() < 16);
+  map.on('zoomend', updateRingLabels);
+  updateRingLabels();
 
   $('searchForm').addEventListener('submit', async (e) => {
     e.preventDefault();

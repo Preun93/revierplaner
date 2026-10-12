@@ -244,6 +244,15 @@ body.locked > :not(.login):not(script) { visibility: hidden; }
 }
 .pin.selected .pin-label { display: block; top: 60px; }
 
+.ring-label { background: none; border: 0; pointer-events: none; }
+.ring-label span {
+  position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); white-space: nowrap;
+  font-size: 11px; font-weight: 700; color: #1d1d1d; background: rgba(255, 216, 77, .92);
+  padding: 1px 5px; border-radius: 6px;
+}
+.ring-label span.major { font-size: 12px; background: #ffd84d; }
+.rings-small .ring-label span:not(.major) { display: none; }
+
 .revier-poly-label {
   background: rgba(15, 22, 18, .75); color: #fff; border: 0; border-radius: 8px;
   font-weight: 600; padding: 4px 8px; box-shadow: none;
@@ -330,6 +339,8 @@ body.locked > :not(.login):not(script) { visibility: hidden; }
 @media (max-width: 520px) {
   .top-btn span { display: none; }
   .top-btn svg { width: 24px; height: 24px; }
+  .top-btn { padding: 4px 5px; }
+  .top-actions { gap: 0; }
   .revier-name { font-size: 20px; }
   .revier-name > span:first-child { max-width: 46vw; }
   .search { top: calc(var(--safe-top) + 78px); }
